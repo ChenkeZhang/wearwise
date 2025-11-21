@@ -4,164 +4,199 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WearWise</title>
-    <meta name="description" content="你的极简穿衣助手">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3b82f6">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4720/4720636.png">
+    <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=W&background=3b82f6&color=fff&size=512&length=1&font-size=0.6&rounded=false">
     <style>
-        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .glass { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; user-select: none; }
+        .glass { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); }
+        .loading-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="bg-gradient-to-b from-blue-400 to-blue-600 min-h-screen text-white flex flex-col items-center justify-center transition-colors duration-1000" id="bg">
+<body class="bg-blue-500 min-h-screen text-white flex flex-col items-center transition-colors duration-1000" id="bg">
 
-    <div class="text-center p-6 w-full max-w-md">
-        <div class="text-8xl mb-4 animate-bounce" id="icon">🤔</div>
-        
-        <h1 class="text-4xl font-bold mb-2 drop-shadow-md" id="suggestion">分析天气中...</h1>
-        
-        <div class="glass rounded-xl p-4 mt-8 space-y-2">
-            <p class="text-lg opacity-90">体感温度: <span id="temp" class="font-mono font-bold">--</span>°C</p>
-            <p class="text-lg opacity-90">降雨概率: <span id="rain" class="font-mono font-bold">--</span>%</p>
-            <p class="text-sm opacity-75 mt-2" id="city">定位中...</p>
+    <div id="install-banner" class="hidden w-full bg-white/90 backdrop-blur text-blue-600 px-4 py-3 flex justify-between items-center shadow-lg fixed top-0 left-0 z-50">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-500 text-white w-8 h-8 rounded-lg flex items-center justify-center font-bold">W</div>
+            <div class="text-sm leading-tight">
+                <p class="font-bold">安装 WearWise</p>
+                <p class="text-xs opacity-80">点击底部分享 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Feather-core-share.svg/1200px-Feather-core-share.svg.png" class="inline w-3 h-3"> 添加到主屏幕</p>
+            </div>
         </div>
-
-        <button onclick="getWeather()" class="mt-8 bg-white text-blue-600 px-6 py-3 rounded-full font-bold shadow-lg active:scale-95 transition-transform">
-            刷新建议
-        </button>
+        <button onclick="closeBanner()" class="text-gray-400 font-bold px-2">&times;</button>
     </div>
 
-    <div id="install-guide" class="hidden fixed bottom-0 left-0 w-full bg-white text-gray-800 p-6 rounded-t-3xl shadow-2xl z-50 transform transition-transform translate-y-full">
-        <div class="flex justify-between items-start mb-4">
-            <h3 class="text-xl font-bold">安装 WearWise</h3>
-            <button onclick="closeGuide()" class="text-gray-400 text-2xl">&times;</button>
+    <div class="flex-1 flex flex-col items-center justify-center w-full max-w-md p-6 pt-16">
+        <div class="text-9xl mb-6 filter drop-shadow-lg transition-all duration-500 transform hover:scale-110" id="icon">🤔</div>
+        
+        <h1 class="text-4xl font-bold mb-2 text-center leading-tight drop-shadow-md" id="suggestion">正在连接卫星...</h1>
+        
+        <div class="glass rounded-2xl p-5 mt-8 w-full space-y-3 text-center shadow-xl">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs opacity-60 uppercase tracking-wider">体感温度</p>
+                    <p class="text-2xl font-bold"><span id="temp">--</span>°C</p>
+                </div>
+                <div>
+                    <p class="text-xs opacity-60 uppercase tracking-wider" id="rain-label">降水概率</p>
+                    <p class="text-2xl font-bold"><span id="rain">--</span>%</p>
+                </div>
+            </div>
+            <div class="border-t border-white/10 pt-2 mt-2">
+                <p class="text-xs opacity-50 flex items-center justify-center gap-1">
+                    📍 <span id="city">定位中...</span>
+                </p>
+            </div>
         </div>
-        <p class="mb-4">为了每天早上提醒你，请把我们装进手机：</p>
-        <ol class="list-decimal list-inside space-y-2 text-sm">
-            <li>点击底部的 <span class="font-bold">分享</span> 按钮 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Feather-core-share.svg/1200px-Feather-core-share.svg.png" class="inline w-4 h-4"></li>
-            <li>向下滑动，选择 <span class="font-bold">添加到主屏幕</span></li>
-        </ol>
-        <div class="text-center mt-4 text-blue-500 animate-bounce">👇 就是这里</div>
+
+        <button id="refresh-btn" onclick="getWeather()" class="mt-10 bg-white/20 hover:bg-white/30 text-white border border-white/40 px-8 py-3 rounded-full font-medium backdrop-blur-sm transition-all active:scale-95 flex items-center gap-2">
+            刷新数据
+        </button>
+        
+        <p id="error-msg" class="mt-4 text-sm text-red-200 hidden bg-red-500/20 px-4 py-2 rounded-lg"></p>
     </div>
 
     <script>
-        // ================= 配置区 =================
-        // ⚠️ 指挥官，请把你的 Key 填在下面引号里
+        // ⚠️ 指挥官，请确认 Key 是否正确
         const API_KEY = "3806f393ab45ce4b1b18655b0d5733c0"; 
-        // ========================================
 
-        // 核心逻辑算法 (WearWise Brain v1.0)
+        // 核心算法 v1.1 (加入了下雪逻辑)
         function analyze(feelsLike, rainPop) {
-            let result = { icon: "🤔", text: "", bg: "from-blue-400 to-blue-600" };
+            let result = { icon: "🤔", text: "", bg: "bg-blue-500" };
 
-            // 1. 先判断雨
-            if (rainPop >= 0.4) {
-                result.icon = "☔️";
-                result.text = "带伞！别侥幸！";
-                result.bg = "from-gray-600 to-gray-800"; // 下雨变暗
+            // 1. 先判断恶劣天气 (雪 > 雨)
+            if (rainPop >= 0.3) { // 门槛降到30%
+                // 如果体感低于 2度，判定为雪
+                if (feelsLike < 2) {
+                    result.icon = "❄️";
+                    result.text = "下雪了！";
+                    result.bg = "bg-slate-400"; // 雪天灰色
+                    document.getElementById('rain-label').innerText = "降雪概率";
+                } else {
+                    result.icon = "☔️";
+                    result.text = rainPop > 0.5 ? "带伞！肯定下雨" : "带伞！可能下雨";
+                    result.bg = "bg-gray-600"; // 雨天深灰
+                    document.getElementById('rain-label').innerText = "降雨概率";
+                }
                 return result;
+            } else {
+                document.getElementById('rain-label').innerText = "降水概率";
             }
 
             // 2. 再判断温度
             if (feelsLike > 23) {
-                result.icon = "☀️";
-                result.text = "短袖 / 热裤";
-                result.bg = "from-orange-400 to-red-500";
+                result.icon = "☀️"; result.text = "短袖 / 热裤"; result.bg = "bg-orange-500";
             } else if (feelsLike >= 16) {
-                result.icon = "👕";
-                result.text = "长袖 / 薄外套";
-                result.bg = "from-green-400 to-teal-500";
+                result.icon = "👕"; result.text = "长袖 / 薄外套"; result.bg = "bg-teal-500";
             } else if (feelsLike >= 10) {
-                result.icon = "🧥";
-                result.text = "卫衣 / 夹克";
-                result.bg = "from-blue-400 to-indigo-500";
+                result.icon = "🧥"; result.text = "卫衣 / 夹克"; result.bg = "bg-indigo-500";
             } else if (feelsLike >= 5) {
-                result.icon = "🧣";
-                result.text = "厚外套 / 大衣";
-                result.bg = "from-indigo-600 to-purple-700";
+                result.icon = "🧣"; result.text = "厚外套 / 大衣"; result.bg = "bg-purple-600";
             } else {
-                result.icon = "🥶";
-                result.text = "羽绒服 / 保命";
-                result.bg = "from-slate-700 to-slate-900";
+                result.icon = "🥶"; result.text = "羽绒服 / 保命"; result.bg = "bg-slate-800";
             }
             return result;
         }
 
-        // 获取天气
+        // 获取天气 (带超时保护)
         function getWeather() {
-            document.getElementById('suggestion').innerText = "读取卫星数据...";
+            const btn = document.getElementById('refresh-btn');
+            const errorMsg = document.getElementById('error-msg');
             
+            btn.innerText = "定位中...";
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            errorMsg.classList.add('hidden');
+
             if (!navigator.geolocation) {
-                alert("需要定位权限才能告诉你穿什么哦！");
+                showError("你的手机不支持定位");
                 return;
             }
 
+            // 设置 8秒超时
+            const options = { timeout: 8000, maximumAge: 60000 };
+
             navigator.geolocation.getCurrentPosition(async (position) => {
+                // 定位成功
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
-                
-                try {
-                    const url = `https://api.openweathermap.org/data/2.5/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,alerts&units=metric&lang=zh_cn&appid=${API_KEY}`;
-                    
-                    // 注意：OneCall API 需要开通权限。如果是免费版标准 Key，可能需要用 Weather API
-                    // 备用方案：使用标准 Weather API (仅当前天气)
-                    const backupUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
-                    
-                    const response = await fetch(backupUrl);
-                    const data = await response.json();
+                btn.innerText = "分析数据...";
 
+                try {
+                    // 使用 Weather API (标准版) - 为了 MVP 稳定性
+                    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
                     if(data.cod !== 200) throw new Error(data.message);
 
                     const feelsLike = Math.round(data.main.feels_like);
-                    // 标准 API 没有降水概率(pop)，这里暂用 cloudy 代替或设为0用于 MVP 测试
-                    // 真正的生产环境我们需要升级 API 或换用支持 pop 的免费接口
-                    const rainPop = data.rain ? 1 : 0; // 简单粗暴逻辑：有 rain 字段就是下雨
+                    // OpenWeatherMap 免费版 weather endpoint 没有 pop 字段
+                    // 这里做一个 MVP 妥协：如果有 rain/snow 对象，认为 100%，否则 0%
+                    // 进阶版需要 OneCall API，但需要绑卡。
+                    let rainPop = 0;
+                    if (data.rain || data.snow) rainPop = 1; 
+                    if (data.weather[0].main === 'Rain' || data.weather[0].main === 'Snow') rainPop = 0.8;
 
                     // 更新 UI
                     const advice = analyze(feelsLike, rainPop);
-                    
                     document.getElementById('icon').innerText = advice.icon;
                     document.getElementById('suggestion').innerText = advice.text;
                     document.getElementById('temp').innerText = feelsLike;
-                    document.getElementById('rain').innerText = rainPop > 0 ? ">40" : "0"; // MVP 模拟
-                    document.getElementById('city').innerText = data.name;
+                    document.getElementById('rain').innerText = (rainPop * 100).toFixed(0);
+                    document.getElementById('city').innerText = data.name; // 保持城市名，但样式已淡化
                     
-                    // 改变背景色
-                    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center justify-center transition-colors duration-1000 bg-gradient-to-b ${advice.bg}`;
+                    // 改变背景
+                    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center transition-colors duration-1000 ${advice.bg}`;
+                    
+                    btn.innerText = "刷新建议";
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
 
                 } catch (error) {
+                    showError("获取天气失败，请检查网络");
                     console.error(error);
-                    document.getElementById('suggestion').innerText = "获取失败";
-                    alert("天气接口报错，请检查 Key 或网络");
                 }
-            });
+
+            }, (err) => {
+                // 定位失败处理
+                console.warn(err);
+                let msg = "定位失败";
+                if (err.code === 1) msg = "请允许定位权限";
+                if (err.code === 3) msg = "定位超时，请重试";
+                showError(msg);
+            }, options);
         }
 
-        // PWA 安装引导检测
+        function showError(msg) {
+            const btn = document.getElementById('refresh-btn');
+            const errorMsg = document.getElementById('error-msg');
+            btn.innerText = "重试";
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
+        }
+
+        // PWA 引导检测 (顶部横幅)
         function checkInstall() {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const isStandalone = window.navigator.standalone || (window.matchMedia('(display-mode: standalone)').matches);
             
             if (isIOS && !isStandalone) {
-                const guide = document.getElementById('install-guide');
-                guide.classList.remove('hidden');
-                setTimeout(() => guide.classList.remove('translate-y-full'), 100);
+                // 只有 iOS 且非全屏模式才显示
+                document.getElementById('install-banner').classList.remove('hidden');
             }
         }
 
-        function closeGuide() {
-            document.getElementById('install-guide').classList.add('translate-y-full');
+        function closeBanner() {
+            document.getElementById('install-banner').classList.add('hidden');
         }
 
-        // 注册 Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-
-        // 启动时运行
+        // 启动
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
         getWeather();
-        setTimeout(checkInstall, 2000); // 2秒后显示引导
+        setTimeout(checkInstall, 1000);
     </script>
 </body>
 </html>
