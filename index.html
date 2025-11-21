@@ -30,11 +30,11 @@
     </div>
 
     <div class="flex-1 flex flex-col items-center justify-center w-full max-w-md p-6 pt-16">
-        <div class="text-9xl mb-6 filter drop-shadow-lg transition-all duration-500 transform hover:scale-110" id="icon">🤔</div>
+        <div class="text-9xl mb-6 filter drop-shadow-lg transition-all duration-500 transform hover:scale-110" id="icon">👋</div>
         
-        <h1 class="text-4xl font-bold mb-2 text-center leading-tight drop-shadow-md" id="suggestion">正在连接卫星...</h1>
+        <h1 class="text-4xl font-bold mb-2 text-center leading-tight drop-shadow-md min-h-[3rem]" id="suggestion">准备好了</h1>
         
-        <div class="glass rounded-2xl p-5 mt-8 w-full space-y-3 text-center shadow-xl">
+        <div id="data-panel" class="glass rounded-2xl p-5 mt-8 w-full space-y-3 text-center shadow-xl hidden opacity-0 transition-opacity duration-500">
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <p class="text-xs opacity-60 uppercase tracking-wider">体感温度</p>
@@ -47,187 +47,176 @@
             </div>
             <div class="border-t border-white/10 pt-2 mt-2">
                 <p class="text-xs opacity-50 flex items-center justify-center gap-1">
-                    📍 <span id="city">定位中...</span>
+                    📍 <span id="city">--</span> <span id="loc-method" class="text-[10px] opacity-70 border border-white/30 rounded px-1 ml-1"></span>
                 </p>
             </div>
         </div>
 
-        <button id="refresh-btn" onclick="getWeather()" class="mt-10 bg-white/20 hover:bg-white/30 text-white border border-white/40 px-8 py-3 rounded-full font-medium backdrop-blur-sm transition-all active:scale-95 flex items-center gap-2">
-            刷新数据
+        <button id="refresh-btn" onclick="startLocation()" class="mt-10 bg-white text-blue-600 hover:bg-gray-100 px-10 py-4 rounded-full font-bold text-lg shadow-lg transition-all active:scale-95 flex items-center gap-2">
+            🚀 开始分析天气
         </button>
         
-        <p id="error-msg" class="mt-4 text-sm text-red-200 hidden bg-red-500/20 px-4 py-2 rounded-lg"></p>
+        <p id="error-msg" class="mt-4 text-sm text-red-200 hidden bg-red-500/20 px-4 py-2 rounded-lg text-center"></p>
     </div>
 
     <script>
-        // ⚠️ 指挥官，请确认 Key 是否正确
         const API_KEY = "3806f393ab45ce4b1b18655b0d5733c0"; 
+        let locationTimeout;
 
-        // 核心算法 v1.1 (加入了下雪逻辑)
+        // 核心算法 v1.1
         function analyze(feelsLike, rainPop) {
             let result = { icon: "🤔", text: "", bg: "bg-blue-500" };
-
-            // 1. 先判断恶劣天气 (雪 > 雨)
-            if (rainPop >= 0.3) { // 门槛降到30%
-                // 如果体感低于 2度，判定为雪
+            if (rainPop >= 0.3) { 
                 if (feelsLike < 2) {
-                    result.icon = "❄️";
-                    result.text = "下雪了！";
-                    result.bg = "bg-slate-400"; // 雪天灰色
+                    result.icon = "❄️"; result.text = "下雪了！"; result.bg = "bg-slate-400";
                     document.getElementById('rain-label').innerText = "降雪概率";
                 } else {
-                    result.icon = "☔️";
-                    result.text = rainPop > 0.5 ? "带伞！肯定下雨" : "带伞！可能下雨";
-                    result.bg = "bg-gray-600"; // 雨天深灰
+                    result.icon = "☔️"; result.text = rainPop > 0.5 ? "带伞！肯定下雨" : "带伞！可能下雨"; result.bg = "bg-gray-600";
                     document.getElementById('rain-label').innerText = "降雨概率";
                 }
                 return result;
             } else {
                 document.getElementById('rain-label').innerText = "降水概率";
             }
-
-            // 2. 再判断温度
-            if (feelsLike > 23) {
-                result.icon = "☀️"; result.text = "短袖 / 热裤"; result.bg = "bg-orange-500";
-            } else if (feelsLike >= 16) {
-                result.icon = "👕"; result.text = "长袖 / 薄外套"; result.bg = "bg-teal-500";
-            } else if (feelsLike >= 10) {
-                result.icon = "🧥"; result.text = "卫衣 / 夹克"; result.bg = "bg-indigo-500";
-            } else if (feelsLike >= 5) {
-                result.icon = "🧣"; result.text = "厚外套 / 大衣"; result.bg = "bg-purple-600";
-            } else {
-                result.icon = "🥶"; result.text = "羽绒服 / 保命"; result.bg = "bg-slate-800";
-            }
+            if (feelsLike > 23) { result.icon = "☀️"; result.text = "短袖 / 热裤"; result.bg = "bg-orange-500"; }
+            else if (feelsLike >= 16) { result.icon = "👕"; result.text = "长袖 / 薄外套"; result.bg = "bg-teal-500"; }
+            else if (feelsLike >= 10) { result.icon = "🧥"; result.text = "卫衣 / 夹克"; result.bg = "bg-indigo-500"; }
+            else if (feelsLike >= 5) { result.icon = "🧣"; result.text = "厚外套 / 大衣"; result.bg = "bg-purple-600"; }
+            else { result.icon = "🥶"; result.text = "羽绒服 / 保命"; result.bg = "bg-slate-800"; }
             return result;
         }
 
-        // 获取天气 (带超时保护)
-
-        // 替换整个 getWeather 函数
-let locationTimeout; // 全局变量存放定时器
-
-function getWeather() {
-    const btn = document.getElementById('refresh-btn');
-    const errorMsg = document.getElementById('error-msg');
-    
-    // 重置状态
-    btn.innerText = "正在连接卫星...";
-    btn.classList.add('opacity-50', 'cursor-not-allowed');
-    btn.disabled = true; // 禁用按钮防止重复点击
-    errorMsg.classList.add('hidden');
-    document.getElementById('suggestion').innerText = "正在连接卫星...";
-
-    if (!navigator.geolocation) {
-        showError("你的手机不支持定位");
-        return;
-    }
-
-    // 清除之前的定时器
-    if (locationTimeout) clearTimeout(locationTimeout);
-
-    // 【核心修改】手动设置一个 10秒 的强制超时炸弹
-    // 如果 10秒后还没有结果，直接强制报错，不再等待系统
-    locationTimeout = setTimeout(() => {
-        console.warn("定位手动超时触发");
-        showError("定位超时 (iOS限制)，请点按钮重试");
-    }, 10000); // 10秒
-
-    const options = {
-        enableHighAccuracy: false, // 关闭高精度，尝试用基站定位，速度更快
-        timeout: 8000, // 系统级超时
-        maximumAge: 60000 // 允许使用1分钟内的缓存位置
-    };
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-        // 【成功回调】
-        clearTimeout(locationTimeout); // 拆除炸弹
-        
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        btn.innerText = "分析数据...";
-        document.getElementById('suggestion').innerText = "分析数据...";
-
-        try {
-            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
+        // 【一级】开始定位流程 (由用户点击触发)
+        function startLocation() {
+            setLoadingState(true, "正在连接卫星 (GPS)...");
             
-            const response = await fetch(url);
-            const data = await response.json();
-            if(data.cod !== 200) throw new Error(data.message);
+            if (!navigator.geolocation) {
+                console.warn("不支持GPS，降级到IP定位");
+                getWeatherByIP(); // 不支持GPS，直接用IP
+                return;
+            }
 
-            const feelsLike = Math.round(data.main.feels_like);
-            let rainPop = 0;
-            if (data.rain || data.snow) rainPop = 1; 
-            if (data.weather[0].main === 'Rain' || data.weather[0].main === 'Snow') rainPop = 0.8;
+            // 5秒 GPS 强制超时炸弹
+            if (locationTimeout) clearTimeout(locationTimeout);
+            locationTimeout = setTimeout(() => {
+                console.warn("GPS超时，降级到IP定位");
+                getWeatherByIP(); // 超时了，转用 IP 定位
+            }, 5000); 
 
-            const advice = analyze(feelsLike, rainPop);
-            updateUI(advice, feelsLike, rainPop, data.name);
-            
-        } catch (error) {
-            showError("获取天气失败，请检查网络");
-            console.error(error);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    clearTimeout(locationTimeout); // GPS成功，拆弹
+                    fetchWeatherData(position.coords.latitude, position.coords.longitude, "GPS精确基站");
+                }, 
+                (err) => {
+                    clearTimeout(locationTimeout); // GPS失败，拆弹
+                    console.warn("GPS失败:", err.message);
+                    // 失败了，转用 IP 定位
+                    setLoadingState(true, "GPS信号弱，尝试网络定位...");
+                    getWeatherByIP();
+                }, 
+                { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
+            );
         }
 
-    }, (err) => {
-        // 【失败回调】
-        clearTimeout(locationTimeout); // 拆除炸弹
-        console.warn("定位失败回调:", err.code, err.message);
-        let msg = "定位失败";
-        if (err.code === 1) msg = "请去设置-隐私开启定位权限";
-        if (err.code === 2) msg = "GPS信号弱，请移步开阔地";
-        if (err.code === 3) msg = "定位超时，请点按钮重试";
-        showError(msg);
-    }, options);
-}
+        // 【二级】IP 定位 (备用方案)
+        async function getWeatherByIP() {
+            try {
+                // 使用免费的 ipapi.co 获取粗略位置
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                const ipData = await ipResponse.json();
+                
+                if (!ipData.latitude || !ipData.longitude) throw new Error("IP定位失败");
+                
+                console.log("IP定位成功:", ipData.city);
+                fetchWeatherData(ipData.latitude, ipData.longitude, "网络粗略定位");
 
-// 辅助函数：更新界面
-function updateUI(advice, feelsLike, rainPop, cityName) {
-    document.getElementById('icon').innerText = advice.icon;
-    document.getElementById('suggestion').innerText = advice.text;
-    document.getElementById('temp').innerText = feelsLike;
-    document.getElementById('rain').innerText = (rainPop * 100).toFixed(0);
-    document.getElementById('city').innerText = cityName;
-    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center transition-colors duration-1000 ${advice.bg}`;
-    
-    resetButton();
-}
-
-// 辅助函数：显示错误
-function showError(msg) {
-    document.getElementById('suggestion').innerText = "遇到问题 🤔";
-    const errorMsg = document.getElementById('error-msg');
-    errorMsg.innerText = msg;
-    errorMsg.classList.remove('hidden');
-    resetButton();
-}
-
-// 辅助函数：重置按钮状态
-function resetButton() {
-    const btn = document.getElementById('refresh-btn');
-    btn.innerText = "刷新建议";
-    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-    btn.disabled = false;
-    if (locationTimeout) clearTimeout(locationTimeout);
-}
-
-
-        // PWA 引导检测 (顶部横幅)
-        function checkInstall() {
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-            const isStandalone = window.navigator.standalone || (window.matchMedia('(display-mode: standalone)').matches);
-            
-            if (isIOS && !isStandalone) {
-                // 只有 iOS 且非全屏模式才显示
-                document.getElementById('install-banner').classList.remove('hidden');
+            } catch (error) {
+                console.error(error);
+                // 【三级兜底】如果连IP都失败了 (极少见)
+                showError("定位全部分析失败，请检查网络连接");
+                setLoadingState(false, "刷新重试");
             }
         }
 
-        function closeBanner() {
-            document.getElementById('install-banner').classList.add('hidden');
+        // 通用天气数据获取函数
+        async function fetchWeatherData(lat, lon, methodTxt) {
+            setLoadingState(true, "分析气象数据...");
+            try {
+                const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if(data.cod !== 200) throw new Error(data.message);
+
+                const feelsLike = Math.round(data.main.feels_like);
+                let rainPop = 0;
+                if (data.rain || data.snow) rainPop = 1; 
+                if (data.weather[0].main === 'Rain' || data.weather[0].main === 'Snow') rainPop = 0.8;
+
+                const advice = analyze(feelsLike, rainPop);
+                updateUI(advice, feelsLike, rainPop, data.name, methodTxt);
+                
+            } catch (error) {
+                showError("天气数据获取失败");
+                console.error(error);
+                setLoadingState(false, "重试");
+            }
         }
 
-        // 启动
+        function updateUI(advice, feelsLike, rainPop, cityName, methodTxt) {
+            document.getElementById('icon').innerText = advice.icon;
+            document.getElementById('suggestion').innerText = advice.text;
+            document.getElementById('temp').innerText = feelsLike;
+            document.getElementById('rain').innerText = (rainPop * 100).toFixed(0);
+            document.getElementById('city').innerText = cityName;
+            document.getElementById('loc-method').innerText = methodTxt;
+            document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center transition-colors duration-1000 ${advice.bg}`;
+            
+            // 显示数据面板
+            const panel = document.getElementById('data-panel');
+            panel.classList.remove('hidden');
+            setTimeout(() => panel.classList.remove('opacity-0'), 100);
+
+            setLoadingState(false, "刷新建议");
+        }
+
+        function setLoadingState(isLoading, text) {
+            const btn = document.getElementById('refresh-btn');
+            const errorMsg = document.getElementById('error-msg');
+            const suggestion = document.getElementById('suggestion');
+            
+            errorMsg.classList.add('hidden');
+            if (isLoading) {
+                btn.innerText = "处理中...";
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                btn.disabled = true;
+                suggestion.innerText = text;
+            } else {
+                btn.innerText = text || "刷新建议";
+                btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-white', 'text-blue-600', 'text-lg', 'px-10', 'py-4');
+                // 成功后按钮变小变透明
+                btn.classList.add('bg-white/20', 'hover:bg-white/30', 'text-white', 'border', 'border-white/40', 'px-8', 'py-3');
+                btn.disabled = false;
+            }
+            if (locationTimeout) clearTimeout(locationTimeout);
+        }
+
+        function showError(msg) {
+            const errorMsg = document.getElementById('error-msg');
+            document.getElementById('suggestion').innerText = "哎呀...";
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
+        }
+
+        function checkInstall() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isStandalone = window.navigator.standalone || (window.matchMedia('(display-mode: standalone)').matches);
+            if (isIOS && !isStandalone) document.getElementById('install-banner').classList.remove('hidden');
+        }
+        function closeBanner() { document.getElementById('install-banner').classList.add('hidden'); }
+
         if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
-        getWeather();
+        // ⚠️ 注意：这里不再自动调用 getWeather()
         setTimeout(checkInstall, 1000);
     </script>
 </body>
