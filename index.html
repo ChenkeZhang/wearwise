@@ -1,0 +1,174 @@
+{\rtf1\ansi\ansicpg936\cocoartf2820
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 <!DOCTYPE html>\
+<html lang="zh-CN">\
+<head>\
+    <meta charset="UTF-8">\
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\
+    <title>WearWise</title>\
+    <meta name="description" content="\uc0\u20320 \u30340 \u26497 \u31616 \u31359 \u34915 \u21161 \u25163 ">\
+    <script src="https://cdn.tailwindcss.com"></script>\
+    <link rel="manifest" href="manifest.json">\
+    <meta name="theme-color" content="#3b82f6">\
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4720/4720636.png">\
+    <style>\
+        body \{ -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; \}\
+        .glass \{ background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); \}\
+    </style>\
+</head>\
+<body class="bg-gradient-to-b from-blue-400 to-blue-600 min-h-screen text-white flex flex-col items-center justify-center transition-colors duration-1000" id="bg">\
+\
+    <div class="text-center p-6 w-full max-w-md">\
+        <div class="text-8xl mb-4 animate-bounce" id="icon">\uc0\u55358 \u56596 </div>\
+        \
+        <h1 class="text-4xl font-bold mb-2 drop-shadow-md" id="suggestion">\uc0\u20998 \u26512 \u22825 \u27668 \u20013 ...</h1>\
+        \
+        <div class="glass rounded-xl p-4 mt-8 space-y-2">\
+            <p class="text-lg opacity-90">\uc0\u20307 \u24863 \u28201 \u24230 : <span id="temp" class="font-mono font-bold">--</span>\'b0C</p>\
+            <p class="text-lg opacity-90">\uc0\u38477 \u38632 \u27010 \u29575 : <span id="rain" class="font-mono font-bold">--</span>%</p>\
+            <p class="text-sm opacity-75 mt-2" id="city">\uc0\u23450 \u20301 \u20013 ...</p>\
+        </div>\
+\
+        <button onclick="getWeather()" class="mt-8 bg-white text-blue-600 px-6 py-3 rounded-full font-bold shadow-lg active:scale-95 transition-transform">\
+            \uc0\u21047 \u26032 \u24314 \u35758 \
+        </button>\
+    </div>\
+\
+    <div id="install-guide" class="hidden fixed bottom-0 left-0 w-full bg-white text-gray-800 p-6 rounded-t-3xl shadow-2xl z-50 transform transition-transform translate-y-full">\
+        <div class="flex justify-between items-start mb-4">\
+            <h3 class="text-xl font-bold">\uc0\u23433 \u35013  WearWise</h3>\
+            <button onclick="closeGuide()" class="text-gray-400 text-2xl">&times;</button>\
+        </div>\
+        <p class="mb-4">\uc0\u20026 \u20102 \u27599 \u22825 \u26089 \u19978 \u25552 \u37266 \u20320 \u65292 \u35831 \u25226 \u25105 \u20204 \u35013 \u36827 \u25163 \u26426 \u65306 </p>\
+        <ol class="list-decimal list-inside space-y-2 text-sm">\
+            <li>\uc0\u28857 \u20987 \u24213 \u37096 \u30340  <span class="font-bold">\u20998 \u20139 </span> \u25353 \u38062  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Feather-core-share.svg/1200px-Feather-core-share.svg.png" class="inline w-4 h-4"></li>\
+            <li>\uc0\u21521 \u19979 \u28369 \u21160 \u65292 \u36873 \u25321  <span class="font-bold">\u28155 \u21152 \u21040 \u20027 \u23631 \u24149 </span></li>\
+        </ol>\
+        <div class="text-center mt-4 text-blue-500 animate-bounce">\uc0\u55357 \u56391  \u23601 \u26159 \u36825 \u37324 </div>\
+    </div>\
+\
+    <script>\
+        // ================= \uc0\u37197 \u32622 \u21306  =================\
+        // \uc0\u9888 \u65039  \u25351 \u25381 \u23448 \u65292 \u35831 \u25226 \u20320 \u30340  Key \u22635 \u22312 \u19979 \u38754 \u24341 \u21495 \u37324 \
+        const API_KEY = "3806f393ab45ce4b1b18655b0d5733c0"; \
+        // ========================================\
+\
+        // \uc0\u26680 \u24515 \u36923 \u36753 \u31639 \u27861  (WearWise Brain v1.0)\
+        function analyze(feelsLike, rainPop) \{\
+            let result = \{ icon: "\uc0\u55358 \u56596 ", text: "", bg: "from-blue-400 to-blue-600" \};\
+\
+            // 1. \uc0\u20808 \u21028 \u26029 \u38632 \
+            if (rainPop >= 0.4) \{\
+                result.icon = "\uc0\u9748 \u65039 ";\
+                result.text = "\uc0\u24102 \u20254 \u65281 \u21035 \u20389 \u24184 \u65281 ";\
+                result.bg = "from-gray-600 to-gray-800"; // \uc0\u19979 \u38632 \u21464 \u26263 \
+                return result;\
+            \}\
+\
+            // 2. \uc0\u20877 \u21028 \u26029 \u28201 \u24230 \
+            if (feelsLike > 23) \{\
+                result.icon = "\uc0\u9728 \u65039 ";\
+                result.text = "\uc0\u30701 \u34966  / \u28909 \u35044 ";\
+                result.bg = "from-orange-400 to-red-500";\
+            \} else if (feelsLike >= 16) \{\
+                result.icon = "\uc0\u55357 \u56405 ";\
+                result.text = "\uc0\u38271 \u34966  / \u34180 \u22806 \u22871 ";\
+                result.bg = "from-green-400 to-teal-500";\
+            \} else if (feelsLike >= 10) \{\
+                result.icon = "\uc0\u55358 \u56805 ";\
+                result.text = "\uc0\u21355 \u34915  / \u22841 \u20811 ";\
+                result.bg = "from-blue-400 to-indigo-500";\
+            \} else if (feelsLike >= 5) \{\
+                result.icon = "\uc0\u55358 \u56803 ";\
+                result.text = "\uc0\u21402 \u22806 \u22871  / \u22823 \u34915 ";\
+                result.bg = "from-indigo-600 to-purple-700";\
+            \} else \{\
+                result.icon = "\uc0\u55358 \u56694 ";\
+                result.text = "\uc0\u32701 \u32466 \u26381  / \u20445 \u21629 ";\
+                result.bg = "from-slate-700 to-slate-900";\
+            \}\
+            return result;\
+        \}\
+\
+        // \uc0\u33719 \u21462 \u22825 \u27668 \
+        function getWeather() \{\
+            document.getElementById('suggestion').innerText = "\uc0\u35835 \u21462 \u21355 \u26143 \u25968 \u25454 ...";\
+            \
+            if (!navigator.geolocation) \{\
+                alert("\uc0\u38656 \u35201 \u23450 \u20301 \u26435 \u38480 \u25165 \u33021 \u21578 \u35785 \u20320 \u31359 \u20160 \u20040 \u21734 \u65281 ");\
+                return;\
+            \}\
+\
+            navigator.geolocation.getCurrentPosition(async (position) => \{\
+                const lat = position.coords.latitude;\
+                const lon = position.coords.longitude;\
+                \
+                try \{\
+                    const url = `https://api.openweathermap.org/data/2.5/onecall?lat=$\{lat\}&lon=$\{lon\}&exclude=minutely,hourly,alerts&units=metric&lang=zh_cn&appid=$\{API_KEY\}`;\
+                    \
+                    // \uc0\u27880 \u24847 \u65306 OneCall API \u38656 \u35201 \u24320 \u36890 \u26435 \u38480 \u12290 \u22914 \u26524 \u26159 \u20813 \u36153 \u29256 \u26631 \u20934  Key\u65292 \u21487 \u33021 \u38656 \u35201 \u29992  Weather API\
+                    // \uc0\u22791 \u29992 \u26041 \u26696 \u65306 \u20351 \u29992 \u26631 \u20934  Weather API (\u20165 \u24403 \u21069 \u22825 \u27668 )\
+                    const backupUrl = `https://api.openweathermap.org/data/2.5/weather?lat=$\{lat\}&lon=$\{lon\}&units=metric&lang=zh_cn&appid=$\{API_KEY\}`;\
+                    \
+                    const response = await fetch(backupUrl);\
+                    const data = await response.json();\
+\
+                    if(data.cod !== 200) throw new Error(data.message);\
+\
+                    const feelsLike = Math.round(data.main.feels_like);\
+                    // \uc0\u26631 \u20934  API \u27809 \u26377 \u38477 \u27700 \u27010 \u29575 (pop)\u65292 \u36825 \u37324 \u26242 \u29992  cloudy \u20195 \u26367 \u25110 \u35774 \u20026 0\u29992 \u20110  MVP \u27979 \u35797 \
+                    // \uc0\u30495 \u27491 \u30340 \u29983 \u20135 \u29615 \u22659 \u25105 \u20204 \u38656 \u35201 \u21319 \u32423  API \u25110 \u25442 \u29992 \u25903 \u25345  pop \u30340 \u20813 \u36153 \u25509 \u21475 \
+                    const rainPop = data.rain ? 1 : 0; // \uc0\u31616 \u21333 \u31895 \u26292 \u36923 \u36753 \u65306 \u26377  rain \u23383 \u27573 \u23601 \u26159 \u19979 \u38632 \
+\
+                    // \uc0\u26356 \u26032  UI\
+                    const advice = analyze(feelsLike, rainPop);\
+                    \
+                    document.getElementById('icon').innerText = advice.icon;\
+                    document.getElementById('suggestion').innerText = advice.text;\
+                    document.getElementById('temp').innerText = feelsLike;\
+                    document.getElementById('rain').innerText = rainPop > 0 ? ">40" : "0"; // MVP \uc0\u27169 \u25311 \
+                    document.getElementById('city').innerText = data.name;\
+                    \
+                    // \uc0\u25913 \u21464 \u32972 \u26223 \u33394 \
+                    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center justify-center transition-colors duration-1000 bg-gradient-to-b $\{advice.bg\}`;\
+\
+                \} catch (error) \{\
+                    console.error(error);\
+                    document.getElementById('suggestion').innerText = "\uc0\u33719 \u21462 \u22833 \u36133 ";\
+                    alert("\uc0\u22825 \u27668 \u25509 \u21475 \u25253 \u38169 \u65292 \u35831 \u26816 \u26597  Key \u25110 \u32593 \u32476 ");\
+                \}\
+            \});\
+        \}\
+\
+        // PWA \uc0\u23433 \u35013 \u24341 \u23548 \u26816 \u27979 \
+        function checkInstall() \{\
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;\
+            const isStandalone = window.navigator.standalone || (window.matchMedia('(display-mode: standalone)').matches);\
+            \
+            if (isIOS && !isStandalone) \{\
+                const guide = document.getElementById('install-guide');\
+                guide.classList.remove('hidden');\
+                setTimeout(() => guide.classList.remove('translate-y-full'), 100);\
+            \}\
+        \}\
+\
+        function closeGuide() \{\
+            document.getElementById('install-guide').classList.add('translate-y-full');\
+        \}\
+\
+        // \uc0\u27880 \u20876  Service Worker\
+        if ('serviceWorker' in navigator) \{\
+            navigator.serviceWorker.register('sw.js');\
+        \}\
+\
+        // \uc0\u21551 \u21160 \u26102 \u36816 \u34892 \
+        getWeather();\
+        setTimeout(checkInstall, 2000); // 2\uc0\u31186 \u21518 \u26174 \u31034 \u24341 \u23548 \
+    </script>\
+</body>\
+</html>}
