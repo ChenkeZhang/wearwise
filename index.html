@@ -102,81 +102,113 @@
         }
 
         // 获取天气 (带超时保护)
-        function getWeather() {
-            const btn = document.getElementById('refresh-btn');
-            const errorMsg = document.getElementById('error-msg');
+
+        // 替换整个 getWeather 函数
+let locationTimeout; // 全局变量存放定时器
+
+function getWeather() {
+    const btn = document.getElementById('refresh-btn');
+    const errorMsg = document.getElementById('error-msg');
+    
+    // 重置状态
+    btn.innerText = "正在连接卫星...";
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    btn.disabled = true; // 禁用按钮防止重复点击
+    errorMsg.classList.add('hidden');
+    document.getElementById('suggestion').innerText = "正在连接卫星...";
+
+    if (!navigator.geolocation) {
+        showError("你的手机不支持定位");
+        return;
+    }
+
+    // 清除之前的定时器
+    if (locationTimeout) clearTimeout(locationTimeout);
+
+    // 【核心修改】手动设置一个 10秒 的强制超时炸弹
+    // 如果 10秒后还没有结果，直接强制报错，不再等待系统
+    locationTimeout = setTimeout(() => {
+        console.warn("定位手动超时触发");
+        showError("定位超时 (iOS限制)，请点按钮重试");
+    }, 10000); // 10秒
+
+    const options = {
+        enableHighAccuracy: false, // 关闭高精度，尝试用基站定位，速度更快
+        timeout: 8000, // 系统级超时
+        maximumAge: 60000 // 允许使用1分钟内的缓存位置
+    };
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+        // 【成功回调】
+        clearTimeout(locationTimeout); // 拆除炸弹
+        
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        btn.innerText = "分析数据...";
+        document.getElementById('suggestion').innerText = "分析数据...";
+
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
             
-            btn.innerText = "定位中...";
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            errorMsg.classList.add('hidden');
+            const response = await fetch(url);
+            const data = await response.json();
+            if(data.cod !== 200) throw new Error(data.message);
 
-            if (!navigator.geolocation) {
-                showError("你的手机不支持定位");
-                return;
-            }
+            const feelsLike = Math.round(data.main.feels_like);
+            let rainPop = 0;
+            if (data.rain || data.snow) rainPop = 1; 
+            if (data.weather[0].main === 'Rain' || data.weather[0].main === 'Snow') rainPop = 0.8;
 
-            // 设置 8秒超时
-            const options = { timeout: 8000, maximumAge: 60000 };
-
-            navigator.geolocation.getCurrentPosition(async (position) => {
-                // 定位成功
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                btn.innerText = "分析数据...";
-
-                try {
-                    // 使用 Weather API (标准版) - 为了 MVP 稳定性
-                    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=zh_cn&appid=${API_KEY}`;
-                    
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    if(data.cod !== 200) throw new Error(data.message);
-
-                    const feelsLike = Math.round(data.main.feels_like);
-                    // OpenWeatherMap 免费版 weather endpoint 没有 pop 字段
-                    // 这里做一个 MVP 妥协：如果有 rain/snow 对象，认为 100%，否则 0%
-                    // 进阶版需要 OneCall API，但需要绑卡。
-                    let rainPop = 0;
-                    if (data.rain || data.snow) rainPop = 1; 
-                    if (data.weather[0].main === 'Rain' || data.weather[0].main === 'Snow') rainPop = 0.8;
-
-                    // 更新 UI
-                    const advice = analyze(feelsLike, rainPop);
-                    document.getElementById('icon').innerText = advice.icon;
-                    document.getElementById('suggestion').innerText = advice.text;
-                    document.getElementById('temp').innerText = feelsLike;
-                    document.getElementById('rain').innerText = (rainPop * 100).toFixed(0);
-                    document.getElementById('city').innerText = data.name; // 保持城市名，但样式已淡化
-                    
-                    // 改变背景
-                    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center transition-colors duration-1000 ${advice.bg}`;
-                    
-                    btn.innerText = "刷新建议";
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-
-                } catch (error) {
-                    showError("获取天气失败，请检查网络");
-                    console.error(error);
-                }
-
-            }, (err) => {
-                // 定位失败处理
-                console.warn(err);
-                let msg = "定位失败";
-                if (err.code === 1) msg = "请允许定位权限";
-                if (err.code === 3) msg = "定位超时，请重试";
-                showError(msg);
-            }, options);
+            const advice = analyze(feelsLike, rainPop);
+            updateUI(advice, feelsLike, rainPop, data.name);
+            
+        } catch (error) {
+            showError("获取天气失败，请检查网络");
+            console.error(error);
         }
 
-        function showError(msg) {
-            const btn = document.getElementById('refresh-btn');
-            const errorMsg = document.getElementById('error-msg');
-            btn.innerText = "重试";
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            errorMsg.innerText = msg;
-            errorMsg.classList.remove('hidden');
-        }
+    }, (err) => {
+        // 【失败回调】
+        clearTimeout(locationTimeout); // 拆除炸弹
+        console.warn("定位失败回调:", err.code, err.message);
+        let msg = "定位失败";
+        if (err.code === 1) msg = "请去设置-隐私开启定位权限";
+        if (err.code === 2) msg = "GPS信号弱，请移步开阔地";
+        if (err.code === 3) msg = "定位超时，请点按钮重试";
+        showError(msg);
+    }, options);
+}
+
+// 辅助函数：更新界面
+function updateUI(advice, feelsLike, rainPop, cityName) {
+    document.getElementById('icon').innerText = advice.icon;
+    document.getElementById('suggestion').innerText = advice.text;
+    document.getElementById('temp').innerText = feelsLike;
+    document.getElementById('rain').innerText = (rainPop * 100).toFixed(0);
+    document.getElementById('city').innerText = cityName;
+    document.getElementById('bg').className = `min-h-screen text-white flex flex-col items-center transition-colors duration-1000 ${advice.bg}`;
+    
+    resetButton();
+}
+
+// 辅助函数：显示错误
+function showError(msg) {
+    document.getElementById('suggestion').innerText = "遇到问题 🤔";
+    const errorMsg = document.getElementById('error-msg');
+    errorMsg.innerText = msg;
+    errorMsg.classList.remove('hidden');
+    resetButton();
+}
+
+// 辅助函数：重置按钮状态
+function resetButton() {
+    const btn = document.getElementById('refresh-btn');
+    btn.innerText = "刷新建议";
+    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    btn.disabled = false;
+    if (locationTimeout) clearTimeout(locationTimeout);
+}
+
 
         // PWA 引导检测 (顶部横幅)
         function checkInstall() {
